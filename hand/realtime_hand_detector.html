@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Hand Detection</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f1f5f9;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #3b82f6, #ef4444);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        .controls {
+            background: #1e293b;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        label {
+            font-weight: 600;
+            min-width: 120px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px 15px;
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            color: #f1f5f9;
+            font-size: 14px;
+            min-width: 300px;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        button {
+            padding: 10px 25px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-connect {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .btn-connect:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-disconnect {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .btn-disconnect:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-clear {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-connected {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 2px solid #10b981;
+        }
+
+        .status-disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 2px solid #ef4444;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #334155;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .prediction-box {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .prediction-box.left {
+            border-color: #ef4444;
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+        }
+
+        .prediction-box.right {
+            border-color: #3b82f6;
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .prediction-hand {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .prediction-hand.left {
+            color: #ef4444;
+        }
+
+        .prediction-hand.right {
+            color: #3b82f6;
+        }
+
+        .prediction-confidence {
+            font-size: 1.5rem;
+            color: #94a3b8;
+        }
+
+        #pcaPlot {
+            background: #1e293b;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid #334155;
+            min-height: 600px;
+            width: 100%;
+        }
+
+        .table-container {
+            background: #1e293b;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #334155;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #475569;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #334155;
+        }
+
+        tr:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .left-label {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .right-label {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤚 Real-Time Hand Detection System</h1>
+            <p class="subtitle">Live PCA Visualization with Trajectory Tracking</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-row">
+                <label>WebSocket URL:</label>
+                <input type="text" id="wsUrl" value="ws://192.168.1.70:8081/sensor/connect?type=android.sensor.accelerometer">
+            </div>
+            <div class="control-row">
+                <div class="status">
+                    <button id="btnConnect" class="btn-connect">🔌 Connect</button>
+                    <button id="btnDisconnect" class="btn-disconnect" disabled>⏹️ Disconnect</button>
+                    <button id="btnClear" class="btn-clear">🗑️ Clear Data</button>
+                    <button id="btnToggle3D" class="btn-clear">🔄 Toggle 3D</button>
+                    <div id="statusBadge" class="status-badge status-disconnected">
+                        🔴 Disconnected
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Predictions</div>
+                <div class="stat-value" id="totalPredictions">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">👈 Left Hand</div>
+                <div class="stat-value" id="leftCount" style="color: #ef4444;">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">👉 Right Hand</div>
+                <div class="stat-value" id="rightCount" style="color: #3b82f6;">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Smoothing Buffer</div>
+                <div class="stat-value" id="bufferSize" style="font-size: 1.5rem;">0/20</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Smoothing Status</div>
+                <div class="stat-value" id="smoothingStatus" style="font-size: 1.2rem; color: #f59e0b;">⏳ Warming up</div>
+            </div>
+        </div>
+
+        <div id="predictionBox" class="prediction-box" style="display: none;">
+            <h2>Current Prediction</h2>
+            <div id="predictionHand" class="prediction-hand"></div>
+            <div id="predictionConfidence" class="prediction-confidence"></div>
+        </div>
+
+        <div id="pcaPlot"></div>
+
+        <div class="table-container">
+            <h3>📋 Recent Predictions</h3>
+            <table id="predictionsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>X</th>
+                        <th>Y</th>
+                        <th>Z</th>
+                        <th>Prediction</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody id="predictionsBody">
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #64748b;">No predictions yet...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let ws = null;
+        let isConnected = false;
+        let realtimeData = [];
+        let leftCount = 0;
+        let rightCount = 0;
+        let currentPrediction = null;
+        let currentConfidence = 0;
+        let is3DMode = false;
+
+        // PCA historical data (you'll need to load this from your trained model)
+        // For now, using placeholder - you should generate this from Python
+        const historicalPCA = {
+            left: [],
+            right: []
+        };
+
+        // DOM elements
+        const btnConnect = document.getElementById('btnConnect');
+        const btnDisconnect = document.getElementById('btnDisconnect');
+        const btnClear = document.getElementById('btnClear');
+        const btnToggle3D = document.getElementById('btnToggle3D');
+        const wsUrlInput = document.getElementById('wsUrl');
+        const statusBadge = document.getElementById('statusBadge');
+        const totalPredictionsEl = document.getElementById('totalPredictions');
+        const leftCountEl = document.getElementById('leftCount');
+        const rightCountEl = document.getElementById('rightCount');
+        const bufferSizeEl = document.getElementById('bufferSize');
+        const smoothingStatusEl = document.getElementById('smoothingStatus');
+        const predictionBox = document.getElementById('predictionBox');
+        const predictionHand = document.getElementById('predictionHand');
+        const predictionConfidence = document.getElementById('predictionConfidence');
+        const predictionsBody = document.getElementById('predictionsBody');
+
+        // Backend API URL
+        const BACKEND_URL = 'http://localhost:5001/predict';
+
+        // Call backend API for prediction
+        async function predictHand(x, y, z) {
+            try {
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ x, y, z })
+                });
+
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error('Prediction API error:', error);
+                // Fallback to simple rule-based prediction if API fails
+                const hand = x > 0 ? 'left' : 'right';
+                const confidence = 0.5;
+                const pc1 = x * 0.8 + y * 0.1 + z * 0.1;
+                const pc2 = x * 0.1 + y * 0.8 + z * 0.1;
+                return { hand, confidence, pc1, pc2 };
+            }
+        }
+
+        // Connect to WebSocket
+        btnConnect.addEventListener('click', () => {
+            const url = wsUrlInput.value;
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = () => {
+                    isConnected = true;
+                    updateUI();
+                    console.log('✅ Connected to sensor!');
+                };
+
+                ws.onmessage = async (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        const values = data.values || [data.x, data.y, data.z];
+                        const x = values[0];
+                        const y = values[1];
+                        const z = values[2];
+
+                        // Make prediction using backend API
+                        const prediction = await predictHand(x, y, z);
+
+                        // Store data
+                        const timestamp = new Date();
+                        realtimeData.push({
+                            timestamp,
+                            x, y, z,
+                            prediction: prediction.hand,
+                            confidence: prediction.confidence,
+                            pc1: prediction.pc1,
+                            pc2: prediction.pc2
+                        });
+
+                        // Keep only last 100 points
+                        if (realtimeData.length > 100) {
+                            realtimeData.shift();
+                        }
+
+                        // Update counts
+                        if (prediction.hand === 'left') {
+                            leftCount++;
+                        } else {
+                            rightCount++;
+                        }
+
+                        // Update current prediction
+                        currentPrediction = prediction.hand;
+                        currentConfidence = prediction.confidence;
+
+                        // Update UI
+                        updateUI();
+                        updatePlot();
+                        updateTable();
+
+                        console.log(`✅ Prediction: ${prediction.hand} (${(prediction.confidence * 100).toFixed(1)}%)`);
+                    } catch (e) {
+                        console.error('Error processing message:', e);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+
+                ws.onclose = () => {
+                    isConnected = false;
+                    updateUI();
+                    console.log('WebSocket connection closed');
+                };
+
+            } catch (e) {
+                console.error('Connection error:', e);
+                alert('Failed to connect. Check the URL and try again.');
+            }
+        });
+
+        // Disconnect
+        btnDisconnect.addEventListener('click', () => {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            isConnected = false;
+            updateUI();
+        });
+
+        // Clear data
+        btnClear.addEventListener('click', () => {
+            realtimeData = [];
+            leftCount = 0;
+            rightCount = 0;
+            currentPrediction = null;
+            currentConfidence = 0;
+            updateUI();
+            updatePlot();
+            updateTable();
+        });
+
+        // Toggle 3D mode
+        btnToggle3D.addEventListener('click', () => {
+            is3DMode = !is3DMode;
+            btnToggle3D.textContent = is3DMode ? '🔄 Toggle 2D' : '🔄 Toggle 3D';
+            updatePlot();
+        });
+
+        // Update UI elements
+        function updateUI() {
+            btnConnect.disabled = isConnected;
+            btnDisconnect.disabled = !isConnected;
+
+            if (isConnected) {
+                statusBadge.className = 'status-badge status-connected';
+                statusBadge.innerHTML = '🟢 Connected';
+            } else {
+                statusBadge.className = 'status-badge status-disconnected';
+                statusBadge.innerHTML = '🔴 Disconnected';
+            }
+
+            totalPredictionsEl.textContent = leftCount + rightCount;
+            leftCountEl.textContent = leftCount;
+            rightCountEl.textContent = rightCount;
+
+            // Update buffer size and smoothing status
+            const bufferSize = realtimeData.length > 100 ? 100 : realtimeData.length;
+            bufferSizeEl.textContent = `${Math.min(bufferSize, 20)}/20`;
+
+            if (bufferSize < 20) {
+                smoothingStatusEl.textContent = '⏳ Warming up';
+                smoothingStatusEl.style.color = '#f59e0b';
+            } else {
+                smoothingStatusEl.textContent = '✅ Active';
+                smoothingStatusEl.style.color = '#10b981';
+            }
+
+            if (currentPrediction) {
+                predictionBox.style.display = 'block';
+                predictionBox.className = `prediction-box ${currentPrediction}`;
+                const emoji = currentPrediction === 'left' ? '👈' : '👉';
+                predictionHand.className = `prediction-hand ${currentPrediction}`;
+                predictionHand.textContent = `${emoji} ${currentPrediction.toUpperCase()} HAND`;
+                predictionConfidence.textContent = `Confidence: ${(currentConfidence * 100).toFixed(1)}%`;
+            } else {
+                predictionBox.style.display = 'none';
+            }
+        }
+
+        // Update PCA plot
+        function updatePlot() {
+            const traces = [];
+
+            if (is3DMode) {
+                // 3D visualization using raw sensor data
+                if (realtimeData.length > 0) {
+                    // Trajectory line
+                    traces.push({
+                        x: realtimeData.map(d => d.x),
+                        y: realtimeData.map(d => d.y),
+                        z: realtimeData.map(d => d.z),
+                        mode: 'lines',
+                        name: 'Trajectory',
+                        type: 'scatter3d',
+                        line: {
+                            color: 'white',
+                            width: 4
+                        },
+                        opacity: 0.6
+                    });
+
+                    // Left hand points
+                    const leftPoints = realtimeData.filter(d => d.prediction === 'left');
+                    if (leftPoints.length > 0) {
+                        traces.push({
+                            x: leftPoints.map(d => d.x),
+                            y: leftPoints.map(d => d.y),
+                            z: leftPoints.map(d => d.z),
+                            mode: 'markers',
+                            name: 'Left Hand',
+                            type: 'scatter3d',
+                            marker: {
+                                size: 6,
+                                color: '#ef4444',
+                                symbol: 'diamond',
+                                line: {
+                                    color: 'white',
+                                    width: 2
+                                }
+                            }
+                        });
+                    }
+
+                    // Right hand points
+                    const rightPoints = realtimeData.filter(d => d.prediction === 'right');
+                    if (rightPoints.length > 0) {
+                        traces.push({
+                            x: rightPoints.map(d => d.x),
+                            y: rightPoints.map(d => d.y),
+                            z: rightPoints.map(d => d.z),
+                            mode: 'markers',
+                            name: 'Right Hand',
+                            type: 'scatter3d',
+                            marker: {
+                                size: 6,
+                                color: '#3b82f6',
+                                symbol: 'diamond',
+                                line: {
+                                    color: 'white',
+                                    width: 2
+                                }
+                            }
+                        });
+                    }
+
+                    // Latest point
+                    const latest = realtimeData[realtimeData.length - 1];
+                    traces.push({
+                        x: [latest.x],
+                        y: [latest.y],
+                        z: [latest.z],
+                        mode: 'markers',
+                        name: 'Latest',
+                        type: 'scatter3d',
+                        marker: {
+                            size: 12,
+                            color: latest.prediction === 'left' ? '#ef4444' : '#3b82f6',
+                            symbol: 'circle',
+                            line: {
+                                color: 'yellow',
+                                width: 4
+                            }
+                        }
+                    });
+                }
+            } else {
+                // 2D PCA visualization
+                if (realtimeData.length > 0) {
+                    // Trajectory line
+                    traces.push({
+                        x: realtimeData.map(d => d.pc1),
+                        y: realtimeData.map(d => d.pc2),
+                        mode: 'lines',
+                        name: 'Trajectory',
+                        line: {
+                            color: 'white',
+                            width: 2
+                        },
+                        opacity: 0.6
+                    });
+
+                    // Left hand points
+                    const leftPoints = realtimeData.filter(d => d.prediction === 'left');
+                    if (leftPoints.length > 0) {
+                        traces.push({
+                            x: leftPoints.map(d => d.pc1),
+                            y: leftPoints.map(d => d.pc2),
+                            mode: 'markers',
+                            name: 'Left Hand',
+                            marker: {
+                                size: 12,
+                                color: '#ef4444',
+                                symbol: 'star',
+                                line: {
+                                    color: 'white',
+                                    width: 2
+                                }
+                            }
+                        });
+                    }
+
+                    // Right hand points
+                    const rightPoints = realtimeData.filter(d => d.prediction === 'right');
+                    if (rightPoints.length > 0) {
+                        traces.push({
+                            x: rightPoints.map(d => d.pc1),
+                            y: rightPoints.map(d => d.pc2),
+                            mode: 'markers',
+                            name: 'Right Hand',
+                            marker: {
+                                size: 12,
+                                color: '#3b82f6',
+                                symbol: 'star',
+                                line: {
+                                    color: 'white',
+                                    width: 2
+                                }
+                            }
+                        });
+                    }
+
+                    // Latest point
+                    const latest = realtimeData[realtimeData.length - 1];
+                    traces.push({
+                        x: [latest.pc1],
+                        y: [latest.pc2],
+                        mode: 'markers',
+                        name: 'Latest',
+                        marker: {
+                            size: 20,
+                            color: latest.prediction === 'left' ? '#ef4444' : '#3b82f6',
+                            symbol: 'circle',
+                            line: {
+                                color: 'yellow',
+                                width: 4
+                            }
+                        }
+                    });
+                }
+            }
+
+            let layout;
+
+            if (is3DMode) {
+                // 3D layout
+                layout = {
+                    title: {
+                        text: '🎯 3D Sensor Space - Real-Time Trajectory',
+                        font: { size: 24, color: '#f1f5f9' }
+                    },
+                    scene: {
+                        xaxis: {
+                            title: 'X Acceleration (m/s²)',
+                            gridcolor: '#334155',
+                            backgroundcolor: '#0f172a',
+                            showbackground: true
+                        },
+                        yaxis: {
+                            title: 'Y Acceleration (m/s²)',
+                            gridcolor: '#334155',
+                            backgroundcolor: '#0f172a',
+                            showbackground: true
+                        },
+                        zaxis: {
+                            title: 'Z Acceleration (m/s²)',
+                            gridcolor: '#334155',
+                            backgroundcolor: '#0f172a',
+                            showbackground: true
+                        },
+                        camera: {
+                            eye: { x: 1.5, y: 1.5, z: 1.3 }
+                        }
+                    },
+                    paper_bgcolor: '#1e293b',
+                    font: { color: '#f1f5f9', size: 12 },
+                    showlegend: true,
+                    legend: {
+                        bgcolor: 'rgba(30, 41, 59, 0.8)',
+                        bordercolor: '#475569',
+                        borderwidth: 1,
+                        x: 1.02,
+                        y: 1
+                    },
+                    hovermode: 'closest',
+                    height: 700,
+                    margin: { l: 0, r: 150, t: 80, b: 0 },
+                    autosize: true
+                };
+            } else {
+                // 2D layout
+                layout = {
+                    title: {
+                        text: '🎯 PCA Feature Space - Real-Time Trajectory',
+                        font: { size: 24, color: '#f1f5f9' }
+                    },
+                    xaxis: {
+                        title: 'First Principal Component (PC1)',
+                        gridcolor: '#334155',
+                        zeroline: true,
+                        zerolinecolor: '#475569',
+                        zerolinewidth: 2,
+                        showgrid: true
+                    },
+                    yaxis: {
+                        title: 'Second Principal Component (PC2)',
+                        gridcolor: '#334155',
+                        zeroline: true,
+                        zerolinecolor: '#475569',
+                        zerolinewidth: 2,
+                        showgrid: true,
+                        scaleanchor: 'x',
+                        scaleratio: 1
+                    },
+                    paper_bgcolor: '#1e293b',
+                    plot_bgcolor: '#0f172a',
+                    font: { color: '#f1f5f9', size: 12 },
+                    showlegend: true,
+                    legend: {
+                        bgcolor: 'rgba(30, 41, 59, 0.8)',
+                        bordercolor: '#475569',
+                        borderwidth: 1,
+                        x: 1.02,
+                        y: 1
+                    },
+                    hovermode: 'closest',
+                    height: 600,
+                    margin: { l: 80, r: 150, t: 80, b: 80 },
+                    autosize: true
+                };
+            }
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('pcaPlot', traces, layout, config);
+        }
+
+        // Update predictions table
+        function updateTable() {
+            if (realtimeData.length === 0) {
+                predictionsBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No predictions yet...</td></tr>';
+                return;
+            }
+
+            const recent = realtimeData.slice(-10).reverse();
+            predictionsBody.innerHTML = recent.map(d => `
+                <tr>
+                    <td>${d.timestamp.toLocaleTimeString()}.${d.timestamp.getMilliseconds()}</td>
+                    <td>${d.x.toFixed(3)}</td>
+                    <td>${d.y.toFixed(3)}</td>
+                    <td>${d.z.toFixed(3)}</td>
+                    <td class="${d.prediction}-label">${d.prediction.toUpperCase()}</td>
+                    <td>${(d.confidence * 100).toFixed(1)}%</td>
+                </tr>
+            `).join('');
+        }
+
+        // Initialize
+        updateUI();
+        updatePlot();
+    </script>
+</body>
+</html>
